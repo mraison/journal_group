@@ -72,7 +72,7 @@ def create_app(test_config=None):
         data = {'ID': groupName}
         return jsonify(data), 200
 
-    @app.route('/groups/<str:groupName>', methods=['DELETE'])
+    @app.route('/groups/<string:groupName>', methods=['DELETE'])
     def delete_group(groupName):
         try:
             cursor = db.get_db().cursor()
@@ -92,7 +92,7 @@ def create_app(test_config=None):
 
         return jsonify({}), 200
 
-    @app.route('/groups/<str:groupName>/users', methods=['POST'])
+    @app.route('/groups/<string:groupName>/users', methods=['POST'])
     def add_user_to_group(groupName):
         req_data = request.get_json()
 
@@ -120,7 +120,7 @@ def create_app(test_config=None):
 
         return jsonify({}), 200
 
-    @app.route('/groups/<str:groupName>/users/<int:userID>', methods=['DELETE'])
+    @app.route('/groups/<string:groupName>/users/<int:userID>', methods=['DELETE'])
     def remove_user_from_group(groupName, userID):
         try:
             cursor = db.get_db().cursor()
