@@ -140,5 +140,32 @@ def create_app(test_config=None):
 
         return jsonify({}), 200
 
+    ## I've been playing around with the idea of fitting all data for UI within a single api endpoint.
+    ## Any option lists or anything like that...
+    @app.route('/UI-conf/groups', methods=['GET'])
+    def get_ui_config():
+        try:
+            cursor = db.get_db().cursor()
+
+            result = cursor.execute(
+                'SELECT name, userID FROM recordSetPermissionGroups'
+            ).fetchall()
+            cursor.close()
+        except Exception as e:
+            return jsonify({'error_detail': str(e)}), 400
+
+        data = [dict(zip([key[0] for key in cursor.description], row)) for row in result]
+        if len(data) == 0:
+            return jsonify({'error_detail': 'No points found'}), 404
+
+        formatted_data = {}
+        for d in data:
+            if not d['name'] in formatted_data:
+                formatted_data[d['name']] = []
+
+            formatted_data[d['name']].append(d['userID'])
+
+        return jsonify(formatted_data), 200
+
     return app
 
