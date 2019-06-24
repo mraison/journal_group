@@ -42,10 +42,13 @@ def create_app(test_config=None):
     # register the database commands
     db.init_app(app)
     # Cors stuff
-    cors = CORS(app, resources={r'/*': {'origins': '*'}}, headers='Content-Type', )
+    cors = CORS(app, origins='*',
+                headers=['Content-Type', 'Authorization'],
+                expose_headers=['Content-Type', 'Authorization'])
 
     @app.route('/groups', methods=['POST'])
-    def create_group():
+    @check_jwt(app.config['SECRET_KEY'])
+    def create_group(jwt_body):
         req_data = request.get_json()
 
         try:
@@ -73,7 +76,8 @@ def create_app(test_config=None):
         return jsonify(data), 200
 
     @app.route('/groups/<string:groupName>', methods=['DELETE'])
-    def delete_group(groupName):
+    @check_jwt(app.config['SECRET_KEY'])
+    def delete_group(jwt_body, groupName):
         try:
             cursor = db.get_db().cursor()
 
@@ -93,7 +97,8 @@ def create_app(test_config=None):
         return jsonify({}), 200
 
     @app.route('/groups/<string:groupName>/users', methods=['POST'])
-    def add_user_to_group(groupName):
+    @check_jwt(app.config['SECRET_KEY'])
+    def add_user_to_group(jwt_body, groupName):
         req_data = request.get_json()
 
         try:
@@ -104,24 +109,24 @@ def create_app(test_config=None):
         try:
             cursor = db.get_db().cursor()
 
-            cursor.execute(
+            result = cursor.execute(
                 'INSERT INTO recordSetPermissionGroups (name, userID) '
                 'Values(?, ?)',
                 (groupName, userID,)
             )
-            id = cursor.lastrowid
             cursor.close()
             db.get_db().commit()
         except Exception as e:
             return jsonify({'error_detail': str(e)}), 400
 
-        if id is None:
-            return jsonify({'error_detail': 'Unable to add user to group.'}), 504
+        if result.rowcount == 0:
+            return jsonify({'error_detail': 'Failed to add user to group.'}), 504
 
         return jsonify({}), 200
 
     @app.route('/groups/<string:groupName>/users/<int:userID>', methods=['DELETE'])
-    def remove_user_from_group(groupName, userID):
+    @check_jwt(app.config['SECRET_KEY'])
+    def remove_user_from_group(jwt_body, groupName, userID):
         try:
             cursor = db.get_db().cursor()
 
@@ -136,14 +141,16 @@ def create_app(test_config=None):
             return jsonify({'error_detail': str(e)}), 400
 
         if result.rowcount == 0:
-            return jsonify({'error_detail': 'Failed to delete point.'}), 404
+            return jsonify({'error_detail': 'Failed to remove user from group.'}), 404
 
         return jsonify({}), 200
 
     ## I've been playing around with the idea of fitting all data for UI within a single api endpoint.
     ## Any option lists or anything like that...
     @app.route('/UI-conf/groups', methods=['GET'])
-    def get_ui_config():
+    @check_jwt(app.config['SECRET_KEY'])
+    def get_ui_config(jwt_body):
+        ## grab group stuff
         try:
             cursor = db.get_db().cursor()
 
@@ -158,14 +165,43 @@ def create_app(test_config=None):
         if len(data) == 0:
             return jsonify({'error_detail': 'No points found'}), 404
 
-        formatted_data = {}
+        formatted_groups = {}
         for d in data:
-            if not d['name'] in formatted_data:
-                formatted_data[d['name']] = []
+            if not d['name'] in formatted_groups:
+                formatted_groups[d['name']] = []
 
-            formatted_data[d['name']].append(d['userID'])
+            formatted_groups[d['name']].append(d['userID'])
 
-        return jsonify(formatted_data), 200
+        ## grab user stuff
+        try:
+            cursor = db.get_db().cursor()
+
+            result = cursor.execute(
+                'SELECT ID, username, rspg.name as groupName FROM users u '
+                'join recordSetPermissionGroups rspg ON u.ID = rspg.userID'
+            ).fetchall()
+            cursor.close()
+        except Exception as e:
+            return jsonify({'error_detail': str(e)}), 400
+
+        data = [dict(zip([key[0] for key in cursor.description], row)) for row in result]
+        if len(data) == 0:
+            return jsonify({'error_detail': 'No points found'}), 404
+
+        formatted_users = {}
+        formatted_user_group_associations = {}
+        for d in data:
+            formatted_users[d['ID']] = d['username']
+
+            if not d['ID'] in formatted_user_group_associations:
+                formatted_user_group_associations[d['ID']] = []
+
+            formatted_user_group_associations[d['ID']].append(d['groupName'])
+
+
+
+
+        return jsonify({'groups': formatted_groups, 'users': formatted_users, 'userGroupAssoc': formatted_user_group_associations}), 200
 
     return app
 
