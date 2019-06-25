@@ -22,7 +22,7 @@ def create_app(test_config=None):
         # a default secret that should be overridden by instance config
         SECRET_KEY=JWT_SECRET,
         # store the database in the instance folder
-        DATABASE=os.path.join(app.instance_path, '../../instance/records.sqlite'),
+        DATABASE=os.path.join('/Users/raisonm/proj/journalApp/instance/records.sqlite'),
     )
     # app.debug = True
     # app.config['SECRET_KEY'] = 'super-secret'
@@ -148,8 +148,8 @@ def create_app(test_config=None):
     ## I've been playing around with the idea of fitting all data for UI within a single api endpoint.
     ## Any option lists or anything like that...
     @app.route('/UI-conf/groups', methods=['GET'])
-    @check_jwt(app.config['SECRET_KEY'])
-    def get_ui_config(jwt_body):
+    # @check_jwt(app.config['SECRET_KEY'])
+    def get_ui_config(): ##jwt_body
         ## grab group stuff
         try:
             cursor = db.get_db().cursor()
@@ -178,7 +178,7 @@ def create_app(test_config=None):
 
             result = cursor.execute(
                 'SELECT ID, username, rspg.name as groupName FROM users u '
-                'join recordSetPermissionGroups rspg ON u.ID = rspg.userID'
+                'left join recordSetPermissionGroups rspg ON u.ID = rspg.userID'
             ).fetchall()
             cursor.close()
         except Exception as e:
